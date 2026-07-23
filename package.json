@@ -11,7 +11,7 @@
     "build": "npm run build -w frontend && npm run build -w backend",
     "start": "npm start -w backend",
     "lint": "npm run lint -w frontend && npm run lint -w backend"
-  },
+  }, 
   "devDependencies": {
     "concurrently": "^10.0.3"
   }
