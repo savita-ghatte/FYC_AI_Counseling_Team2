@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String            @id @default(uuid())
+  email             String            @unique
+  phone             String?           @unique
+  passwordHash      String?
+  role              String            @default("student") // student, admin
+  isVerified        Boolean           @default(false)
+  verificationToken String?
+  otpCode           String?
+  otpExpiresAt      DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  studentProfile    StudentProfile?
+  chatSessions      ChatSession[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  userSessions      UserSession[]
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model StudentProfile {
+  id                  String             @id @default(uuid())
+  userId              String             @unique
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fullName            String?
+  gender              String?
+  dateOfBirth         DateTime?
+  category            String?            // GEN, EWS, OBC, SC, ST
+  pwdStatus           Boolean            @default(false)
+  familyIncome        Float?
+  
+  // Location
+  homeState           String?
+  domicileState       String?
+  
+  // Academic
+  examsAppeared       Json?              // e.g. [{exam: "JEE Main", rank: 15000}]
+  board12th           String?
+  percentage12th      Float?
+  percentage10th      Float?
+  
+  // Preferences
+  preferredBranches   String[]
+  budgetMax           Float?
+  
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  scholarshipMatches  ScholarshipMatch[]
+  studentDocuments    StudentDocument[]
+
+  @@index([category])
+}
+
+model College {
+  id             String      @id @default(uuid())
+  name           String
+  shortName      String?
+  instituteType  String?
+  approvalBodies String[]
+  
+  state          String?
+  city           String?
+  address        String?
+  
+  nirfRank       Int?
+  naacGrade      String?
+  
+  websiteUrl     String?
+  
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  courses        Course[]
+  facilities     Facility[]
+  placements     Placement[]
+
+  @@index([state])
+  @@index([instituteType])
+}
+
+model Course {
+  id              String      @id @default(uuid())
+  collegeId       String
+  college         College     @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  
+  name            String
+  branchCode      String?
+  degreeType      String?
+  durationYears   Int         @default(4)
+  totalIntake     Int?
+  
+  tuitionFee      Float?
+  hostelFee       Float?
+  
+  isActive        Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  cutoffs         Cutoff[]
+  seatMatrices    SeatMatrix[]
+  placements      Placement[]
+
+  @@index([branchCode])
+}
+
+model Cutoff {
+  id                String   @id @default(uuid())
+  courseId          String
+  course            Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  year              Int
+  round             Int
+  category          String
+  quotaType         String
+  
+  openingRank       Int?
+  closingRank       Int?
+  openingPercentile Float?
+  closingPercentile Float?
+  openingMarks      Int?
+  closingMarks      Int?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([courseId, year, round, category, quotaType])
+  @@index([courseId, year])
+  @@index([category])
+}
+
+model SeatMatrix {
+  id          String   @id @default(uuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  year        Int
+  category    String
+  quotaType   String
+  totalSeats  Int
+  filledSeats Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+
+  @@unique([courseId, year, category, quotaType])
+}
+
+model Placement {
+  id              String   @id @default(uuid())
+  collegeId       String
+  college         College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  courseId        String?
+  course          Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  year            Int
+  averagePackage  Float?
+  highestPackage  Float?
+  placementRate   Float?
+  topRecruiters   String[]
+  
+  createdAt       DateTime @default(now())
+
+  @@index([collegeId, year])
+}
+
+model Facility {
+  id          String   @id @default(uuid())
+  collegeId   String
+  college     College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  
+  category    String   // hostel, library, etc.
+  name        String?
+  description String?
+  isAvailable Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+}
+
+model Scholarship {
+  id                  String             @id @default(uuid())
+  name                String
+  provider            String?
+  category            String?
+  type                String             @default("Government") // Government, Private
+  
+  amountMax           Float?
+  applicationMode     String?
+  applicationUrl      String?
+  
+  eligibilityCriteria String?
+  requiredDocuments   String[]
+  deadline            DateTime?
+  
+  isActive            Boolean            @default(true)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  scholarshipMatches ScholarshipMatch[]
+}
+
+model ScholarshipMatch {
+  id               String          @id @default(uuid())
+  studentProfileId String
+  scholarshipId    String
+  studentProfile   StudentProfile  @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  scholarship      Scholarship     @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
+  
+  matchScore       Float?
+  eligibilityStatus String?
+  
+  createdAt        DateTime        @default(now())
+
+  @@unique([studentProfileId, scholarshipId])
+}
+
+model CounsellingBody {
+  id          String               @id @default(uuid())
+  name        String
+  examTypes   String[]
+  portalUrl   String?
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+
+  rounds      CounsellingRound[]
+}
+
+model CounsellingRound {
+  id                 String          @id @default(uuid())
+  counsellingBodyId  String
+  counsellingBody    CounsellingBody @relation(fields: [counsellingBodyId], references: [id], onDelete: Cascade)
+  
+  year               Int
+  roundNumber        Int
+  roundName          String?
+  registrationStart  DateTime?
+  registrationEnd    DateTime?
+  seatAllotmentDate  DateTime?
+  
+  createdAt          DateTime        @default(now())
+
+  @@unique([counsellingBodyId, year, roundNumber])
+}
+
+model DocumentTemplate {
+  id          String            @id @default(uuid())
+  name        String
+  category    String
+  description String?
+  isMandatory Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+
+  studentDocs StudentDocument[]
+}
+
+model StudentDocument {
+  id                 String           @id @default(uuid())
+  studentProfileId   String
+  studentProfile     StudentProfile   @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  templateId         String
+  template           DocumentTemplate @relation(fields: [templateId], references: [id])
+  
+  fileUrl            String
+  fileName           String?
+  status             String           @default("uploaded") // uploaded, verified, rejected
+  
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model ChatSession {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  status      String        @default("active")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  messages    ChatMessage[]
+}
+
+model ChatMessage {
+  id          String       @id @default(uuid())
+  sessionId   String
+  session     ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  role        String       // user, assistant
+  content     String
+  feedback    String?      // helpful, not_helpful
+  
+  createdAt   DateTime     @default(now())
+
+  @@index([sessionId])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type        String
+  title       String
+  message     String
+  status      String   @default("pending")
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId, status])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action      String
+  entityType  String?
+  entityId    String?
+  
+  createdAt   DateTime @default(now())
+}
+
+model Feedback {
+  id          String   @id @default(uuid())
+  email       String?
+  message     String
+  rating      Int?
+  
+  createdAt   DateTime @default(now())
+}
