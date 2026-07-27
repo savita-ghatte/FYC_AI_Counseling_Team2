@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Sphere, MeshDistortMaterial } from '@react-three/drei';
 import { motion } from 'framer-motion';
-import { Sparkles, Mail, Lock, ArrowRight, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, Eye, EyeOff, User as UserIcon } from 'lucide-react';
 import { api } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import * as THREE from 'three';
@@ -35,6 +35,7 @@ const AnimatedSphere = () => {
 
 export const Login = () => {
   const [isRegister, setIsRegister] = useState(false);
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -44,29 +45,8 @@ export const Login = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
-  const [captchaId, setCaptchaId] = useState('');
-  const [captchaSvg, setCaptchaSvg] = useState('');
-  const [captchaInput, setCaptchaInput] = useState('');
-
   const navigate = useNavigate();
   const { user, login } = useAuth();
-
-  const fetchCaptcha = async () => {
-    try {
-      const res = await api.get('/auth/captcha');
-      if (res.data.status === 'success') {
-        setCaptchaId(res.data.data.id);
-        setCaptchaSvg(res.data.data.svg);
-        setCaptchaInput('');
-      }
-    } catch (err) {
-      console.error('Failed to fetch captcha', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchCaptcha();
-  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -86,17 +66,15 @@ export const Login = () => {
         const response = await api.post('/auth/reset-password', {
           email,
           newPassword: password,
-          captchaId,
-          captchaValue: captchaInput,
         });
         if (response.data.status === 'success') {
           setSuccess('Password reset successfully! Please login with your new password.');
           setIsResettingPassword(false);
           setPassword('');
-          fetchCaptcha();
         }
       } else if (isRegister) {
         const response = await api.post('/auth/register', {
+          fullName,
           email,
           password,
         });
@@ -104,14 +82,11 @@ export const Login = () => {
           setSuccess('Registration successful! You can now login.');
           setIsRegister(false);
           setPassword('');
-          fetchCaptcha();
         }
       } else {
         const response = await api.post('/auth/login', {
           email,
           password,
-          captchaId,
-          captchaValue: captchaInput,
         });
 
         if (response.data.status === 'success') {
@@ -121,7 +96,6 @@ export const Login = () => {
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Authentication failed');
-      fetchCaptcha(); // Refresh CAPTCHA on failure
     } finally {
       setLoading(false);
     }
@@ -212,39 +186,27 @@ export const Login = () => {
                   </button>
                 </div>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Security Verification</label>
-                <div className="flex gap-4">
-                  <div 
-                    className="bg-white rounded-xl overflow-hidden flex-shrink-0 cursor-pointer"
-                    onClick={fetchCaptcha}
-                    dangerouslySetInnerHTML={{ __html: captchaSvg }}
-                    title="Click to refresh CAPTCHA"
-                  />
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={captchaInput}
-                      onChange={(e) => setCaptchaInput(e.target.value)}
-                      className="block w-full px-4 py-3 h-full bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                      placeholder="Enter CAPTCHA"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={fetchCaptcha}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-indigo-400 transition-colors"
-                    >
-                      <RefreshCw className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
             </motion.div>
           ) : (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6">
-              {/* Full Name removed for simplified registration */}
+              {isRegister && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <UserIcon className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="block w-full pl-11 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      placeholder="John Doe"
+                      required={isRegister}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
@@ -312,36 +274,6 @@ export const Login = () => {
                 )}
               </div>
 
-              {!isRegister && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Security Verification</label>
-                  <div className="flex gap-4">
-                    <div 
-                      className="bg-white rounded-xl overflow-hidden flex-shrink-0 cursor-pointer"
-                      onClick={fetchCaptcha}
-                      dangerouslySetInnerHTML={{ __html: captchaSvg }}
-                      title="Click to refresh CAPTCHA"
-                    />
-                    <div className="relative flex-1">
-                      <input
-                        type="text"
-                        value={captchaInput}
-                        onChange={(e) => setCaptchaInput(e.target.value)}
-                        className="block w-full px-4 py-3 h-full bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                        placeholder="Enter CAPTCHA"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={fetchCaptcha}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-indigo-400 transition-colors"
-                      >
-                        <RefreshCw className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </motion.div>
           )}
 

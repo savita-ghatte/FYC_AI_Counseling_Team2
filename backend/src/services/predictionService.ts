@@ -60,7 +60,13 @@ export class PredictionService {
       where: {
         exam: { name: examName },
         category: category,
-        ...(gender && { genderQuota: gender }),
+        ...(gender ? {
+          OR: [
+            { genderQuota: null },
+            { genderQuota: 'Gender-Neutral' },
+            ...(gender === 'Female' ? [{ genderQuota: 'Female-only' }] : [])
+          ]
+        } : {}),
       },
       include: {
         course: {

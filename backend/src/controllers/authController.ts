@@ -12,10 +12,7 @@ const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, password } = req.body;
-    
-    // Generate default fullName from email prefix
-    const fullName = email.split('@')[0];
+    const { email, password, fullName } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -51,12 +48,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
 
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, password, captchaId, captchaValue } = req.body;
-
-    if (!captchaService.verifyCaptcha(captchaId, captchaValue)) {
-      res.status(400).json({ status: 'error', message: 'Invalid or expired CAPTCHA' });
-      return;
-    }
+    const { email, password } = req.body;
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) {
@@ -222,12 +214,7 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
 
 export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, newPassword, captchaId, captchaValue } = req.body;
-
-    if (!captchaService.verifyCaptcha(captchaId, captchaValue)) {
-      res.status(400).json({ status: 'error', message: 'Invalid or expired CAPTCHA' });
-      return;
-    }
+    const { email, newPassword } = req.body;
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {

@@ -9,8 +9,6 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
-  captchaId: z.string().min(1, 'Captcha ID is required'),
-  captchaValue: z.string().min(1, 'Captcha is required'),
 });
 
 export const verifyOtpSchema = z.object({
@@ -25,8 +23,6 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
   newPassword: z.string().min(8, 'Password must be at least 8 characters long'),
-  captchaId: z.string().min(1, 'Captcha ID is required'),
-  captchaValue: z.string().min(1, 'Captcha is required'),
 });
 
 export const updateProfileSchema = z.object({
