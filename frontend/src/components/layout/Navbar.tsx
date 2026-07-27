@@ -18,6 +18,7 @@ export const Navbar = () => {
     { name: 'Scholarships', path: '/scholarships' },
     { name: 'Predictor', path: '/predictor' },
     { name: 'AI Chat', path: '/ai-counsellor' },
+    ...(user ? [{ name: 'Profile', path: '/profile' }] : []),
   ];
 
   return (

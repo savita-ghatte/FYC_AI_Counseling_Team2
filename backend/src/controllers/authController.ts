@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { tokenService } from '../services/tokenService';
 import { emailService } from '../services/emailService';
 import crypto from 'crypto';
+import { captchaService } from '../services/captchaService';
 
 const prisma = new PrismaClient();
 
@@ -11,7 +12,10 @@ const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, password, fullName } = req.body;
+    const { email, password } = req.body;
+    
+    // Generate default fullName from email prefix
+    const fullName = email.split('@')[0];
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -20,15 +24,12 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const otpCode = generateOtp();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
-        otpCode,
-        otpExpiresAt,
+        isVerified: true,
         studentProfile: {
           create: {
             fullName,
@@ -37,56 +38,25 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       },
     });
 
-    // Send OTP asynchronously
-    emailService.sendOtpEmail(user.email, otpCode).catch(console.error);
-
     res.status(201).json({
       status: 'success',
-      message: 'Registration successful. Please check your email for OTP.',
+      message: 'Registration successful. You can now login.',
     });
   } catch (error) {
     next(error);
   }
 };
 
-export const verifyOtp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  try {
-    const { email, otp } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      res.status(404).json({ status: 'error', message: 'User not found' });
-      return;
-    }
-
-    if (user.isVerified) {
-      res.status(400).json({ status: 'error', message: 'User is already verified' });
-      return;
-    }
-
-    if (user.otpCode !== otp || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
-      res.status(400).json({ status: 'error', message: 'Invalid or expired OTP' });
-      return;
-    }
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        isVerified: true,
-        otpCode: null,
-        otpExpiresAt: null,
-      },
-    });
-
-    res.json({ status: 'success', message: 'Email verified successfully. You can now login.' });
-  } catch (error) {
-    next(error);
-  }
-};
 
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password, captchaId, captchaValue } = req.body;
+
+    if (!captchaService.verifyCaptcha(captchaId, captchaValue)) {
+      res.status(400).json({ status: 'error', message: 'Invalid or expired CAPTCHA' });
+      return;
+    }
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) {
@@ -94,10 +64,7 @@ export const login = async (req: Request, res: Response, next: NextFunction): Pr
       return;
     }
 
-    if (!user.isVerified) {
-      res.status(403).json({ status: 'error', message: 'Please verify your email first' });
-      return;
-    }
+
 
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
     if (!isValidPassword) {
@@ -255,11 +222,16 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
 
 export const resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { email, newPassword, captchaId, captchaValue } = req.body;
+
+    if (!captchaService.verifyCaptcha(captchaId, captchaValue)) {
+      res.status(400).json({ status: 'error', message: 'Invalid or expired CAPTCHA' });
+      return;
+    }
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || user.otpCode !== otp || !user.otpExpiresAt || user.otpExpiresAt < new Date()) {
-      res.status(400).json({ status: 'error', message: 'Invalid or expired OTP' });
+    if (!user) {
+      res.status(400).json({ status: 'error', message: 'User not found' });
       return;
     }
 
@@ -283,4 +255,9 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
   } catch (error) {
     next(error);
   }
+};
+
+export const getCaptcha = (req: Request, res: Response): void => {
+  const captcha = captchaService.generateCaptcha();
+  res.json({ status: 'success', data: captcha });
 };

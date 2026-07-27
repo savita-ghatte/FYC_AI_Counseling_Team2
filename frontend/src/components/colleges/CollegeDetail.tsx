@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MapPin, Building, GraduationCap, Globe, ArrowLeft } from 'lucide-react';
+import { api } from '../../utils/api';
 
 export const CollegeDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -11,26 +12,13 @@ export const CollegeDetail = () => {
   useEffect(() => {
     const fetchCollege = async () => {
       try {
-        // const res = await axios.get(`/api/colleges/${id}`);
-        // setCollege(res.data.data.college);
-        
-        // MOCK DATA for preview
+        const res = await api.get(`/colleges/${id}`);
+        const data = res.data.data.college;
+        // Map backend fields to frontend expected names
         setCollege({
-          id,
-          name: 'Indian Institute of Technology Bombay',
-          type: 'Government',
-          state: 'Maharashtra',
-          city: 'Mumbai',
-          nirfRank: 3,
-          establishedYear: 1958,
-          website: 'https://www.iitb.ac.in',
-          description: 'IIT Bombay is an institute of national importance established in 1958.',
-          courses: [
-            { degreeType: 'B.Tech', branchCode: 'CSE', durationYears: 4, tuitionFee: 200000, totalIntake: 120 }
-          ],
-          placements: [
-            { year: 2023, highestPackage: 15000000, averagePackage: 2300000, placementPercentage: 95 }
-          ]
+          ...data,
+          type: data.instituteType,
+          website: data.websiteUrl
         });
       } catch (error) {
         console.error(error);

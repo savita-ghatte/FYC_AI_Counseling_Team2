@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Sphere, MeshDistortMaterial } from '@react-three/drei';
 import { motion } from 'framer-motion';
-import { Sparkles, Mail, Lock, ArrowRight, User as UserIcon } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { api } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import * as THREE from 'three';
@@ -35,20 +35,38 @@ const AnimatedSphere = () => {
 
 export const Login = () => {
   const [isRegister, setIsRegister] = useState(false);
-  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaSvg, setCaptchaSvg] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+
   const navigate = useNavigate();
   const { user, login } = useAuth();
+
+  const fetchCaptcha = async () => {
+    try {
+      const res = await api.get('/auth/captcha');
+      if (res.data.status === 'success') {
+        setCaptchaId(res.data.data.id);
+        setCaptchaSvg(res.data.data.svg);
+        setCaptchaInput('');
+      }
+    } catch (err) {
+      console.error('Failed to fetch captcha', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchCaptcha();
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -67,48 +85,33 @@ export const Login = () => {
       if (isResettingPassword) {
         const response = await api.post('/auth/reset-password', {
           email,
-          otp,
           newPassword: password,
+          captchaId,
+          captchaValue: captchaInput,
         });
         if (response.data.status === 'success') {
           setSuccess('Password reset successfully! Please login with your new password.');
           setIsResettingPassword(false);
-          setIsForgotPassword(false);
           setPassword('');
-          setOtp('');
-        }
-      } else if (isForgotPassword) {
-        const response = await api.post('/auth/forgot-password', {
-          email,
-        });
-        if (response.data.status === 'success') {
-          setSuccess('If the email exists, an OTP has been sent. Please check your email.');
-          setIsResettingPassword(true);
-        }
-      } else if (isVerifying) {
-        const response = await api.post('/auth/verify-otp', {
-          email,
-          otp,
-        });
-        if (response.data.status === 'success') {
-          setSuccess('Email verified successfully! You can now login.');
-          setIsVerifying(false);
-          setIsRegister(false);
+          fetchCaptcha();
         }
       } else if (isRegister) {
         const response = await api.post('/auth/register', {
-          fullName,
           email,
           password,
         });
         if (response.data.status === 'success') {
-          setSuccess('Registration successful! Please check your email for the OTP.');
-          setIsVerifying(true);
+          setSuccess('Registration successful! You can now login.');
+          setIsRegister(false);
+          setPassword('');
+          fetchCaptcha();
         }
       } else {
         const response = await api.post('/auth/login', {
           email,
           password,
+          captchaId,
+          captchaValue: captchaInput,
         });
 
         if (response.data.status === 'success') {
@@ -117,14 +120,8 @@ export const Login = () => {
         }
       }
     } catch (err: any) {
-      if (err.response?.status === 403 && err.response?.data?.message?.includes('verify')) {
-        // Handle unverified user trying to login
-        setError('Your email is not verified. Please check your email for the OTP.');
-        setIsVerifying(true);
-        // Optionally trigger a resend OTP here if the backend supported it easily
-      } else {
-        setError(err.response?.data?.message || 'Authentication failed');
-      }
+      setError(err.response?.data?.message || 'Authentication failed');
+      fetchCaptcha(); // Refresh CAPTCHA on failure
     } finally {
       setLoading(false);
     }
@@ -154,10 +151,10 @@ export const Login = () => {
             <Sparkles className="w-6 h-6 text-indigo-300" />
           </div>
           <h2 className="text-3xl font-bold text-white mb-2">
-            {isResettingPassword ? 'Reset Password' : isForgotPassword ? 'Forgot Password' : isVerifying ? 'Verify Email' : isRegister ? 'Create Account' : 'Welcome Back'}
+            {isResettingPassword ? 'Reset Password' : isRegister ? 'Create Account' : 'Welcome Back'}
           </h2>
           <p className="text-slate-300 text-sm text-center">
-            {isResettingPassword ? `Enter the OTP sent to ${email} and your new password` : isForgotPassword ? 'Enter your email to receive a password reset OTP' : isVerifying ? `Enter the 6-digit OTP sent to ${email}` : isRegister ? 'Sign up to get started' : 'Enter your credentials to access your AI Counsellor dashboard'}
+            {isResettingPassword ? `Enter your new password for ${email}` : isRegister ? 'Sign up to get started' : 'Enter your credentials to access your AI Counsellor dashboard'}
           </p>
         </div>
 
@@ -177,17 +174,17 @@ export const Login = () => {
           {isResettingPassword ? (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">One-Time Password (OTP)</label>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-slate-400" />
+                    <Mail className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="block w-full pl-11 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    placeholder="123456"
+                    placeholder="you@example.com"
                     required
                   />
                 </div>
@@ -199,86 +196,55 @@ export const Login = () => {
                     <Lock className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="block w-full pl-11 pr-12 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     placeholder="••••••••"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
                 </div>
               </div>
-            </motion.div>
-          ) : isForgotPassword ? (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-11 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
-            </motion.div>
-          ) : isVerifying ? (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6">
+              
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    disabled
-                    className="block w-full pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-400 cursor-not-allowed"
+                <label className="block text-sm font-medium text-slate-300 mb-2">Security Verification</label>
+                <div className="flex gap-4">
+                  <div 
+                    className="bg-white rounded-xl overflow-hidden flex-shrink-0 cursor-pointer"
+                    onClick={fetchCaptcha}
+                    dangerouslySetInnerHTML={{ __html: captchaSvg }}
+                    title="Click to refresh CAPTCHA"
                   />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">One-Time Password (OTP)</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-slate-400" />
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={captchaInput}
+                      onChange={(e) => setCaptchaInput(e.target.value)}
+                      className="block w-full px-4 py-3 h-full bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      placeholder="Enter CAPTCHA"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={fetchCaptcha}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-indigo-400 transition-colors"
+                    >
+                      <RefreshCw className="h-5 w-5" />
+                    </button>
                   </div>
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                    placeholder="123456"
-                    required
-                  />
                 </div>
               </div>
             </motion.div>
           ) : (
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-6">
-              {isRegister && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <UserIcon className="h-5 w-5 text-slate-400" />
-                    </div>
-                    <input
-                      type="text"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="block w-full pl-11 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                      placeholder="John Doe"
-                      required={isRegister}
-                    />
-                  </div>
-                </div>
-              )}
+              {/* Full Name removed for simplified registration */}
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
@@ -304,13 +270,20 @@ export const Login = () => {
                     <Lock className="h-5 w-5 text-slate-400" />
                   </div>
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full pl-11 pr-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="block w-full pl-11 pr-12 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                     placeholder="••••••••"
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
                 </div>
                 {!isRegister && (
                   <div className="flex justify-between items-center mt-3">
@@ -326,9 +299,10 @@ export const Login = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        setIsForgotPassword(true);
+                        setIsResettingPassword(true);
                         setError('');
                         setSuccess('');
+                        setShowPassword(false); // Reset visibility when toggling modes
                       }}
                       className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
                     >
@@ -337,6 +311,37 @@ export const Login = () => {
                   </div>
                 )}
               </div>
+
+              {!isRegister && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Security Verification</label>
+                  <div className="flex gap-4">
+                    <div 
+                      className="bg-white rounded-xl overflow-hidden flex-shrink-0 cursor-pointer"
+                      onClick={fetchCaptcha}
+                      dangerouslySetInnerHTML={{ __html: captchaSvg }}
+                      title="Click to refresh CAPTCHA"
+                    />
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={captchaInput}
+                        onChange={(e) => setCaptchaInput(e.target.value)}
+                        className="block w-full px-4 py-3 h-full bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                        placeholder="Enter CAPTCHA"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={fetchCaptcha}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-indigo-400 transition-colors"
+                      >
+                        <RefreshCw className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -345,13 +350,13 @@ export const Login = () => {
             disabled={loading}
             className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-semibold shadow-lg shadow-indigo-500/30 transition-all flex justify-center items-center gap-2 group"
           >
-            {loading ? 'Processing...' : isResettingPassword ? 'Reset Password' : isForgotPassword ? 'Send Reset OTP' : isVerifying ? 'Verify OTP' : isRegister ? 'Sign Up' : 'Sign In'}
+            {loading ? 'Processing...' : isResettingPassword ? 'Reset Password' : isRegister ? 'Sign Up' : 'Sign In'}
             {!loading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
           </button>
         </form>
 
         <div className="mt-8 text-center text-sm text-slate-400">
-          {!isVerifying && !isForgotPassword && !isResettingPassword && (
+          {!isResettingPassword && (
             <>
               {isRegister ? "Already have an account? " : "Don't have an account? "}
               <button 
@@ -360,6 +365,7 @@ export const Login = () => {
                   setIsRegister(!isRegister);
                   setError('');
                   setSuccess('');
+                  setShowPassword(false);
                 }} 
                 className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
               >
@@ -367,13 +373,12 @@ export const Login = () => {
               </button>
             </>
           )}
-          {(isVerifying || isForgotPassword || isResettingPassword) && (
+          {isResettingPassword && (
             <button 
               type="button"
               onClick={() => {
-                setIsVerifying(false);
-                setIsForgotPassword(false);
                 setIsResettingPassword(false);
+                setShowPassword(false);
               }} 
               className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
             >

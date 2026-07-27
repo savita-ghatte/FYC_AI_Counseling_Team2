@@ -13,9 +13,9 @@ import {
   adminLogin,
   logout,
   refresh,
-  verifyOtp,
   forgotPassword,
   resetPassword,
+  getCaptcha,
 } from '../controllers/authController';
 import { authenticate } from '../middlewares/authMiddleware';
 import { requireRole } from '../middlewares/roleMiddleware';
@@ -23,10 +23,10 @@ import { requireRole } from '../middlewares/roleMiddleware';
 const router = Router();
 
 // Public Routes
+router.get('/captcha', getCaptcha);
 router.post('/register', validateRequest(registerSchema), register);
 router.post('/login', validateRequest(loginSchema), login);
 router.post('/admin-login', validateRequest(loginSchema), adminLogin);
-router.post('/verify-otp', validateRequest(verifyOtpSchema), verifyOtp);
 router.post('/forgot-password', validateRequest(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', validateRequest(resetPasswordSchema), resetPassword);
 router.post('/refresh', refresh);

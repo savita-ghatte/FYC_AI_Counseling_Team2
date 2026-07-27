@@ -4,19 +4,25 @@ export class EmailService {
   private transporter;
 
   constructor() {
-    // For development, we're using Ethereal Email (a dummy SMTP service)
-    // In production, replace this with SES, SendGrid, or Gmail
     this.transporter = nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: Number(process.env.SMTP_PORT) || 587,
       auth: {
-        user: 'mylene.will26@ethereal.email', // Replace with dynamic ethereal or real credentials if desired
-        pass: '6u9aV9uQnKxTtzV2B9',
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
     });
   }
 
   async sendOtpEmail(to: string, otp: string): Promise<void> {
+    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.warn('[DEVELOPMENT MODE] SMTP credentials missing in .env. OTP not sent via real email.');
+      console.log('\n=============================================');
+      console.log(`[DEVELOPMENT] OTP for ${to}: ${otp}`);
+      console.log('=============================================\n');
+      return;
+    }
+
     const mailOptions = {
       from: '"AI Admission Counsellor" <no-reply@aicounsellor.in>',
       to,

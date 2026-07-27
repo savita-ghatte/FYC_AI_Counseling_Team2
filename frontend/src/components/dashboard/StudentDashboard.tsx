@@ -5,27 +5,31 @@ import { api } from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 
 export const StudentDashboard = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
+  const [savedColleges] = useState<any[]>([]); // Start empty
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const res = await api.get('/student/profile');
-        setProfile(res.data.data);
+        setProfile(res.data.data.profile);
       } catch (err) {
         console.error('Error fetching profile', err);
       }
     };
-    if (token) fetchProfile();
+    if (token) {
+      fetchProfile();
+      // Fetch saved colleges here if API exists, for now we leave it empty as per requirement
+    }
   }, [token]);
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome back, {profile?.fullName?.split(' ')[0] || 'Student'}! 👋</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome back, {user?.fullName?.split(' ')[0] || profile?.fullName?.split(' ')[0] || 'Student'}! 👋</h1>
           <p className="text-slate-500">Here is your admission journey overview.</p>
         </div>
         <button onClick={() => navigate('/profile')} className="btn-secondary text-sm">Edit Profile</button>
@@ -56,18 +60,21 @@ export const StudentDashboard = () => {
               <button onClick={() => navigate('/colleges')} className="text-sm text-blue-600 font-medium">Browse All</button>
             </div>
             <div className="space-y-3">
-              {[
-                { name: 'IIT Bombay', branch: 'Computer Science', match: '92%' },
-                { name: 'Delhi Technological University', branch: 'Information Tech', match: '85%' }
-              ].map((c, i) => (
-                <div key={i} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl border border-slate-100 transition-colors cursor-pointer">
-                  <div>
-                    <h4 className="font-bold text-slate-700">{c.name}</h4>
-                    <p className="text-xs text-slate-500">{c.branch}</p>
+              {savedColleges.length > 0 ? (
+                savedColleges.map((c, i) => (
+                  <div key={i} className="flex justify-between items-center p-3 hover:bg-slate-50 rounded-xl border border-slate-100 transition-colors cursor-pointer">
+                    <div>
+                      <h4 className="font-bold text-slate-700">{c.name}</h4>
+                      <p className="text-xs text-slate-500">{c.branch}</p>
+                    </div>
+                    <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-md">{c.match} Match</span>
                   </div>
-                  <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-md">{c.match} Match</span>
+                ))
+              ) : (
+                <div className="text-slate-500 text-sm text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                  You haven't saved any colleges yet.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>

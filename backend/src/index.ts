@@ -5,12 +5,14 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
 
 import path from 'path';
 import authRoutes from './routes/authRoutes';
 import studentRoutes from './routes/studentRoutes';
 import collegeRoutes from './routes/collegeRoutes';
 import predictorRoutes from './routes/predictorRoutes';
+import predictionRoutes from './routes/predictionRoutes';
 import scholarshipRoutes from './routes/scholarshipRoutes';
 import aiRoutes from './routes/aiRoutes';
 import adminRoutes from './routes/adminRoutes';
@@ -28,6 +30,7 @@ const port = process.env.PORT || 5000;
 initMailer();
 
 // Middleware
+app.use(compression()); // Gzip compression for responses
 app.use(morgan('dev')); // Request logging
 app.use(cors({
   origin: 'http://localhost:5173', // Strict CORS for frontend
@@ -61,6 +64,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/colleges', collegeRoutes);
 app.use('/api/predictor', predictorRoutes);
+app.use('/api/predictions', predictionRoutes);
 app.use('/api/scholarships', scholarshipRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);

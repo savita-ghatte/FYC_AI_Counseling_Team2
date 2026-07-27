@@ -1,5 +1,5 @@
-import { FileText, Download, TrendingUp, Users } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Download, TrendingUp, Users } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const userGrowthData = [
   { name: 'Jan', users: 400 },

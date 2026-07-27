@@ -5,7 +5,8 @@ import { Settings2, Loader2, Sparkles } from 'lucide-react';
 
 type PredictionInput = {
   examName: string;
-  rank: number;
+  scoreValue: number;
+  scoreType: 'rank' | 'percentile';
   category: string;
   gender: string;
   homeState: string;
@@ -18,7 +19,7 @@ export const PredictorForm = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<PredictionInput>({
-    defaultValues: { examName: 'JEE', category: 'GEN', gender: 'Male', homeState: 'Maharashtra' }
+    defaultValues: { examName: 'JEE', scoreType: 'rank', category: 'GEN', gender: 'Male', homeState: 'Maharashtra' }
   });
 
   const onSubmit = async (data: PredictionInput) => {
@@ -58,14 +59,29 @@ export const PredictorForm = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">All India Rank / Score</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Score Type</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="radio" value="rank" {...register('scoreType')} className="text-blue-600 focus:ring-blue-500" />
+                Rank (All India)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="radio" value="percentile" {...register('scoreType')} className="text-blue-600 focus:ring-blue-500" />
+                Percentile
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Rank / Percentile Value</label>
             <input 
               type="number"
-              {...register('rank', { required: 'Rank is required', valueAsNumber: true })}
+              step="any"
+              {...register('scoreValue', { required: 'Score is required', valueAsNumber: true })}
               className="input-field" 
-              placeholder="e.g. 15000"
+              placeholder="e.g. 15000 or 99.45"
             />
-            {errors.rank && <span className="text-xs text-red-500 mt-1">{errors.rank.message}</span>}
+            {errors.scoreValue && <span className="text-xs text-red-500 mt-1">{errors.scoreValue.message}</span>}
           </div>
 
           <div>
