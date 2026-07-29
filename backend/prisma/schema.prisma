@@ -12,12 +12,15 @@ model User {
   email             String    @unique
   phone             String?   @unique
   passwordHash      String?
-  role              String    @default("student") // student, admin
+  role              String    @default("student") // student, admin, super_admin
   isVerified        Boolean   @default(false)
   verificationToken String?
   otpCode           String?
   otpExpiresAt      DateTime?
   lastLoginAt       DateTime?
+  failedLoginAttempts Int       @default(0)
+  lockoutUntil      DateTime?
+  termsAccepted     Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -33,6 +36,8 @@ model UserSession {
   userId    String
   token     String   @unique
   expiresAt DateTime
+  ipAddress String?
+  userAgent String?
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -369,6 +374,8 @@ model AuditLog {
   action     String
   entityType String?
   entityId   String?
+  ipAddress  String?
+  userAgent  String?
 
   createdAt DateTime @default(now())
 }

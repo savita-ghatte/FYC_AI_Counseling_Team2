@@ -21,7 +21,7 @@ export class CaptchaService {
       ignoreChars: '0o1il', // ignore confusing characters
       noise: 2,
       color: true,
-      background: '#f8fafc',
+      // background removed for transparency
     });
 
     const id = crypto.randomUUID();

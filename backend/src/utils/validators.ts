@@ -4,11 +4,19 @@ export const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
   fullName: z.string().min(2, 'Full name is required'),
+  mobileNumber: z.string().optional(),
+  captchaId: z.string().min(1, 'Captcha ID is required'),
+  captchaText: z.string().min(1, 'Captcha Text is required'),
+  termsAccepted: z.literal(true, {
+    errorMap: () => ({ message: 'You must accept the terms and conditions' }),
+  }),
 });
 
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
+  captchaId: z.string().min(1, 'Captcha ID is required'),
+  captchaText: z.string().min(1, 'Captcha Text is required'),
 });
 
 export const verifyOtpSchema = z.object({
@@ -23,6 +31,7 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
   newPassword: z.string().min(8, 'Password must be at least 8 characters long'),
+  otp: z.string().length(6, 'OTP must be 6 digits'),
 });
 
 export const updateProfileSchema = z.object({
