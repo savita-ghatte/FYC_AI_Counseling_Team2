@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { Navbar } from './components/layout/Navbar';
 import { Home } from './components/home/Home';
 import { Login } from './components/auth/Login';
+import { VerifyEmail } from './components/auth/VerifyEmail';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AdminRoute } from './components/auth/AdminRoute';
 
@@ -34,6 +35,7 @@ function App() {
               {/* Public Routes */}
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
 
               {/* Protected Student/Common Routes */}
               <Route element={<ProtectedRoute />}>

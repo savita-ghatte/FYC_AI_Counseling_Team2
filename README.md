@@ -25,6 +25,14 @@ This is a monorepo setup using npm workspaces containing:
 2. **Environment Variables:**
    - In the `backend` folder, duplicate `.env.example` as `.env`.
    - Update the `DATABASE_URL` with your PostgreSQL connection string.
+   - Configure SMTP variables for email verification and OTPs:
+     ```env
+     SMTP_HOST=smtp.gmail.com
+     SMTP_PORT=587
+     SMTP_USER=your_email@gmail.com
+     SMTP_PASS=your_app_password
+     FRONTEND_URL=http://localhost:5173
+     ```
 
 3. **Database Setup (Prisma):**
    Navigate to the backend and initialize the database schema:
@@ -40,6 +48,17 @@ To start both the frontend and backend development servers concurrently, run the
 ```bash
 npm start
 ```
+
+## Authentication & Security Features
+
+This application includes a robust, production-ready authentication system:
+- **CAPTCHA**: SVG-based CAPTCHA is required for registration and login to prevent bot attacks. It is fully compatible with Dark/Light mode.
+- **Email Verification**: Users must verify their email address before accessing their account.
+- **Brute-Force Protection**: 
+  - Express Rate Limiting is active across all auth endpoints.
+  - Accounts are automatically locked for 15 minutes after 5 consecutive failed login attempts.
+- **Secure Password Reset**: Two-step OTP-based password reset.
+- **Audit Logging**: Captures IP Address and User-Agent on login/logout events.
 
 ## Production Deployment (Docker)
 
