@@ -67,21 +67,27 @@ export const streamChat = async (req: Request, res: Response, next: NextFunction
       take: 10
     });
 
-    // Map history to Gemini format
-    const contents = history.map(msg => ({
+    // Map history to Gemini format, ensuring alternating roles
+    const rawContents = history.map(msg => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }]
+      parts: [{ text: msg.content || ' ' }]
     }));
 
-    // Inject system prompt and context into the very first message
-    if (contents.length > 0) {
-      contents[0].parts[0].text = `${SYSTEM_PROMPT}\n${contextString}\n\n${contents[0].parts[0].text}`;
-    } else {
-      // Fallback if history is somehow empty (should not happen since we just saved)
-      contents.push({
-        role: 'user',
-        parts: [{ text: `${SYSTEM_PROMPT}\n${contextString}\n\n${message}` }]
-      });
+    // Consolidate adjacent messages of the same role to prevent Gemini API errors
+    const contents: {role: string, parts: {text: string}[]}[] = [];
+    for (const msg of rawContents) {
+      if (contents.length > 0 && contents[contents.length - 1].role === msg.role) {
+        contents[contents.length - 1].parts[0].text += `\n\n${msg.parts[0].text}`;
+      } else {
+        contents.push(msg);
+      }
+    }
+
+    // Ensure the last message is from the user, as we just added it
+    if (contents.length > 0 && contents[contents.length - 1].role !== 'user') {
+      contents.push({ role: 'user', parts: [{ text: message }] });
+    } else if (contents.length === 0) {
+      contents.push({ role: 'user', parts: [{ text: message }] });
     }
 
     // Set headers for Streaming Server-Sent Events (SSE)
@@ -107,7 +113,10 @@ export const streamChat = async (req: Request, res: Response, next: NextFunction
       }
     } else {
       // Real Gemini API Call
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ 
+        model: 'gemini-1.5-flash',
+        systemInstruction: `${SYSTEM_PROMPT}\n${contextString}`
+      });
       const result = await model.generateContentStream({
         contents
       });

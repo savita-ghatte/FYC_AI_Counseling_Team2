@@ -39,6 +39,9 @@ async function main() {
   });
   console.log(`Created student: ${student.email}`);
 
+  console.log('Wiping existing colleges to prevent duplicates...');
+  await prisma.college.deleteMany({});
+
   const collegesData = [
   {
     "name": "Indian Institute of Technology Bombay",
@@ -742,16 +745,93 @@ async function main() {
   }
 ];
 
+  const statesAndCities = [
+    { state: "Maharashtra", cities: ["Mumbai", "Pune", "Nagpur", "Nashik", "Aurangabad", "Amravati", "Jalgaon"] },
+    { state: "Karnataka", cities: ["Bangalore", "Mysore", "Hubli", "Mangalore", "Belgaum", "Gulbarga"] },
+    { state: "Tamil Nadu", cities: ["Chennai", "Coimbatore", "Madurai", "Trichy", "Salem", "Tirunelveli"] },
+    { state: "Uttar Pradesh", cities: ["Lucknow", "Kanpur", "Noida", "Ghaziabad", "Agra", "Varanasi", "Prayagraj"] },
+    { state: "Gujarat", cities: ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Gandhinagar", "Bhavnagar"] },
+    { state: "Delhi", cities: ["New Delhi"] },
+    { state: "Rajasthan", cities: ["Jaipur", "Jodhpur", "Udaipur", "Kota", "Bikaner", "Ajmer"] },
+    { state: "Madhya Pradesh", cities: ["Indore", "Bhopal", "Jabalpur", "Gwalior", "Ujjain"] },
+    { state: "West Bengal", cities: ["Kolkata", "Howrah", "Durgapur", "Asansol", "Siliguri"] },
+    { state: "Andhra Pradesh", cities: ["Visakhapatnam", "Vijayawada", "Guntur", "Tirupati", "Nellore"] },
+    { state: "Telangana", cities: ["Hyderabad", "Warangal", "Nizamabad", "Khammam"] },
+  ];
+  const prefixes = ["Government Engineering College", "Institute of Technology", "College of Engineering", "Institute of Science and Technology", "Technical University", "Engineering College", "Institute of Research and Technology", "Global Institute of Engineering", "National Institute of Science", "City Engineering College"];
+
+  let generatedCount = 500 - collegesData.length;
+  for (let i = 0; i < generatedCount; i++) {
+    const stateObj = statesAndCities[Math.floor(Math.random() * statesAndCities.length)];
+    const city = stateObj.cities[Math.floor(Math.random() * stateObj.cities.length)];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    
+    // Create a unique name to avoid duplicates
+    const name = `${prefix}, ${city} (Campus ${i + 1})`;
+    const shortName = `${prefix.split(' ').map(w => w[0]).join('')} ${city}`;
+    
+    collegesData.push({
+      name,
+      shortName,
+      state: stateObj.state,
+      city,
+      type: "state"
+    });
+  }
+
+  const nirfMap: Record<string, number> = {
+    "IIT Madras": 1,
+    "IIT Delhi": 2,
+    "IIT Bombay": 3,
+    "IIT Kanpur": 4,
+    "IIT Roorkee": 5,
+    "IIT Kharagpur": 6,
+    "IIT Guwahati": 7,
+    "IIT Hyderabad": 8,
+    "NIT Trichy": 9,
+    "Jadavpur University": 10,
+    "VIT Vellore": 11,
+    "NIT Surathkal": 12,
+    "IIT Indore": 14,
+    "IIT BHU": 15,
+    "NIT Rourkela": 16,
+    "IIT ISM": 17,
+    "IIT Gandhinagar": 18,
+    "Amrita": 19,
+    "TIET": 20,
+    "NIT Warangal": 21,
+    "IIT Ropar": 22,
+    "NIT Calicut": 23,
+    "IIT Jodhpur": 30,
+    "IIT Mandi": 33,
+    "MNIT Jaipur": 37,
+    "NIT Silchar": 40,
+    "VNIT Nagpur": 41,
+    "NIT Durgapur": 43,
+    "MNNIT Allahabad": 49,
+    "IIIT Hyderabad": 55,
+    "NIT Kurukshetra": 58,
+    "NSUT": 60,
+    "SVNIT Surat": 65,
+    "IIIT Bangalore": 74,
+    "IIIT Delhi": 75,
+  };
+
   for (let i = 0; i < collegesData.length; i++) {
     const c = collegesData[i];
     
     // Assign random rank based on type
     let rank = 100;
     let baseRank = 500;
-    if (c.type === 'iit') { rank = i + 1; baseRank = 100 + i * 200; }
-    else if (c.type === 'nit') { rank = 15 + i; baseRank = 1000 + i * 500; }
-    else if (c.type === 'iiit') { rank = 40 + i; baseRank = 3000 + i * 800; }
-    else { rank = 20 + i; baseRank = 2000 + i * 1000; }
+    
+    if (nirfMap[c.shortName]) {
+      rank = nirfMap[c.shortName];
+      baseRank = 50 + (rank * 50); // e.g. IIT Madras opens at 100
+    } else if (c.type === 'iit') { rank = 40 + i; baseRank = 1000 + i * 200; }
+    else if (c.type === 'nit') { rank = 80 + i; baseRank = 2000 + i * 500; }
+    else if (c.type === 'iiit') { rank = 100 + i; baseRank = 4000 + i * 800; }
+    else if (c.type === 'state') { rank = 150 + (i % 300); baseRank = 15000 + ((i - 75) * 1200); }
+    else { rank = 120 + i; baseRank = 3000 + i * 1000; }
 
     const college = await prisma.college.create({
       data: {

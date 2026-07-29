@@ -254,6 +254,13 @@ export const PredictionResults = () => {
                       </h3>
                       <p className="text-sm text-slate-500 mb-4">{college.collegeDetails.location}</p>
                       
+                      {college.isFallback && (
+                        <div className="bg-orange-50 text-orange-700 px-3 py-1.5 rounded-lg text-xs font-bold mb-4 inline-block border border-orange-200">
+                          <AlertCircle size={14} className="inline mr-1" />
+                          Alternative Recommendation
+                        </div>
+                      )}
+
                       {/* Highlight Badges */}
                       <div className="flex flex-wrap gap-3 mb-4">
                         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg text-xs font-semibold text-slate-600">

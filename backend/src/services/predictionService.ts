@@ -43,8 +43,14 @@ export class PredictionService {
   async generatePredictions(input: PredictionInput, weights = DEFAULT_WEIGHTS) {
     const { scoreValue, scoreType, category, gender, homeState, preferredState, preferredBranches, examName } = input;
     
-    const rank = scoreType === 'rank' ? scoreValue : undefined;
-    const percentile = scoreType === 'percentile' ? scoreValue : undefined;
+    let rank = scoreType === 'rank' ? scoreValue : undefined;
+    let percentile = scoreType === 'percentile' ? scoreValue : undefined;
+
+    // Estimate rank if only percentile is given (approximate based on 1.2M candidates for JEE, 300k for others)
+    if (!rank && percentile) {
+      const totalCandidates = examName === 'JEE' ? 1200000 : 300000;
+      rank = Math.max(1, Math.round(((100 - percentile) / 100) * totalCandidates));
+    }
 
     // We'll fetch cutoffs matching the exact parameters for the last 3-5 years.
     const cacheKey = `predictions:${examName}:${category}:${gender}:${homeState}:${preferredState}:${preferredBranches?.join(',')}`;
@@ -58,7 +64,6 @@ export class PredictionService {
     
     const cutoffs = await prisma.cutoff.findMany({
       where: {
-        exam: { name: examName },
         category: category,
         ...(gender ? {
           OR: [
@@ -85,6 +90,7 @@ export class PredictionService {
     }
 
     const predictions: any[] = [];
+    const fallbackCandidates: any[] = [];
 
     for (const [courseId, courseCutoffs] of courseCutoffMap.entries()) {
       // Calculate avg closing rank/percentile
@@ -125,6 +131,7 @@ export class PredictionService {
           status = 'Dream';
           probability = 10 + Math.random() * 19;
         } else {
+          fallbackCandidates.push({ collegeInfo, courseInfo, avgClosingRank, avgClosingPercentile });
           continue; // Too far off
         }
       } 
@@ -143,6 +150,7 @@ export class PredictionService {
           status = 'Dream';
           probability = 10 + Math.random() * 19;
         } else {
+          fallbackCandidates.push({ collegeInfo, courseInfo, avgClosingRank, avgClosingPercentile });
           continue;
         }
       } else {
@@ -172,6 +180,41 @@ export class PredictionService {
           placementRate: collegeInfo.placementRate,
         }
       });
+    }
+
+    // Fallback Engine: If no predictions found, recommend the most lenient options
+    if (predictions.length === 0 && fallbackCandidates.length > 0) {
+      if (rank) {
+        fallbackCandidates.sort((a, b) => (b.avgClosingRank || 0) - (a.avgClosingRank || 0));
+      } else if (percentile) {
+        fallbackCandidates.sort((a, b) => (a.avgClosingPercentile || 100) - (b.avgClosingPercentile || 100));
+      }
+      
+      const topFallbacks = fallbackCandidates.slice(0, 5);
+      for (const f of topFallbacks) {
+        const matchScore = this.calculateMultiFactorScore(f.collegeInfo, weights);
+        predictions.push({
+          collegeId: f.collegeInfo.id,
+          collegeName: f.collegeInfo.name,
+          courseId: f.courseInfo.id,
+          courseName: f.courseInfo.name,
+          category,
+          historicalAvgClosingRank: f.avgClosingRank ? Math.round(f.avgClosingRank) : null,
+          historicalAvgClosingPercentile: f.avgClosingPercentile ? f.avgClosingPercentile.toFixed(2) : null,
+          status: 'Dream',
+          probability: Math.max(1, Math.round(Math.random() * 10)),
+          matchScore: Math.round(matchScore),
+          isFallback: true,
+          collegeDetails: {
+            location: `${f.collegeInfo.city}, ${f.collegeInfo.state}`,
+            nirfRank: f.collegeInfo.nirfRank,
+            fees: f.courseInfo.tuitionFee,
+            ownership: f.collegeInfo.ownership,
+            averageFees: f.collegeInfo.averageFees,
+            placementRate: f.collegeInfo.placementRate,
+          }
+        });
+      }
     }
 
     // Sort first by status priority, then by probability, then by match score

@@ -56,16 +56,20 @@ export const AICounsellor = () => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
+      let buffer = '';
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         
         if (value) {
-          const chunkString = decoder.decode(value);
-          const events = chunkString.split('\\n\\n').filter(Boolean);
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split('\\n\\n');
+          buffer = events.pop() || ''; // Retain the last incomplete chunk
           
           for (const ev of events) {
+            if (ev.trim() === '') continue;
+            
             if (ev.startsWith('data: ')) {
               try {
                 const data = JSON.parse(ev.replace('data: ', ''));
@@ -79,9 +83,12 @@ export const AICounsellor = () => {
                   );
                 } else if (data.type === 'error') {
                   console.error(data.message);
+                } else if (data.type === 'done') {
+                  // Stream finished from backend explicitly
                 }
               } catch (e) {
-                // partial JSON or ignore
+                // If it fails to parse, it could be corrupted, but our buffer logic minimizes this.
+                console.error("Error parsing SSE JSON:", e);
               }
             }
           }

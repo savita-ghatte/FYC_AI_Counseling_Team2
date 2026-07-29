@@ -12,14 +12,19 @@ export class GeminiService {
       return "Gemini explanation is currently unavailable due to missing API configuration.";
     }
 
+    const isFallback = predictionData.isFallback;
+    const fallbackInstructions = isFallback 
+      ? "\n5. CRITICAL: Mention that because their rank/percentile is significantly lower than historical trends, this college is suggested as an alternative/fallback option that has a relatively more lenient cutoff compared to others, but it is still a 'Reach' or 'Dream'." 
+      : "";
+
     const prompt = `
 You are an expert admission counselor for engineering and medical colleges in India. 
 Your task is to explain a deterministic college prediction to a student in a natural, encouraging, and clear manner.
 
 Student Profile:
 - Exam: ${userProfile.examName}
-- Rank: ${userProfile.rank || 'N/A'} 
-- Percentile: ${userProfile.percentile || 'N/A'}
+- Rank: ${userProfile.rank || userProfile.scoreValue || 'N/A'} 
+- Percentile: ${userProfile.percentile || userProfile.scoreValue || 'N/A'}
 - Category: ${userProfile.category}
 - Home State: ${userProfile.homeState || 'N/A'}
 
@@ -34,7 +39,7 @@ Instructions:
 1. Briefly explain WHY this college is categorized as "${predictionData.status}" for them based on the historical cutoff versus their rank/percentile.
 2. Mention their match score and what it implies (e.g. good placement, infrastructure).
 3. Do not make any guarantees. Clearly distinguish this prediction from a 100% guarantee.
-4. Keep the explanation concise (2-3 short paragraphs).
+4. Keep the explanation concise (2-3 short paragraphs).${fallbackInstructions}
 `;
 
     try {
