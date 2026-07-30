@@ -102,6 +102,12 @@ export class PredictionService {
 
       if (!avgClosingRank && !avgClosingPercentile) continue;
 
+      // Determine confidence level based on number of years of data
+      const dataPoints = Math.max(validRankCutoffs.length, validPercentileCutoffs.length);
+      let confidenceLevel = 'Low';
+      if (dataPoints >= 3) confidenceLevel = 'High';
+      else if (dataPoints === 2) confidenceLevel = 'Medium';
+
       const courseInfo = courseCutoffs[0].course;
       const collegeInfo = courseInfo.college;
 
@@ -110,47 +116,51 @@ export class PredictionService {
       
       // Filter by preferred branches if provided
       if (preferredBranches && preferredBranches.length > 0) {
-        if (!preferredBranches.some(b => courseInfo.name.includes(b))) continue;
+        if (!preferredBranches.some(b => courseInfo.name.toLowerCase().includes(b.toLowerCase()))) continue;
       }
 
       let status = '';
       let probability = 0;
 
-      // Logic based on rank
+      // Deterministic Logic based on rank
       if (rank && avgClosingRank) {
-        if (rank <= avgClosingRank * 0.85) {
+        const ratio = rank / avgClosingRank;
+        
+        if (ratio <= 0.85) {
           status = 'Safe';
-          probability = 90 + Math.random() * 9;
-        } else if (rank <= avgClosingRank * 1.0) {
+          probability = Math.max(85, Math.min(100, Math.round(100 - (ratio * 17.6)))); 
+        } else if (ratio <= 1.0) {
           status = 'Moderate';
-          probability = 60 + Math.random() * 24;
-        } else if (rank <= avgClosingRank * 1.3) {
+          probability = Math.max(60, Math.min(84, Math.round(84 - ((ratio - 0.85) * 160))));
+        } else if (ratio <= 1.3) {
           status = 'Reach';
-          probability = 30 + Math.random() * 29;
-        } else if (rank <= avgClosingRank * 2.0) {
+          probability = Math.max(30, Math.min(59, Math.round(59 - ((ratio - 1.0) * 96))));
+        } else if (ratio <= 2.0) {
           status = 'Dream';
-          probability = 10 + Math.random() * 19;
+          probability = Math.max(10, Math.min(29, Math.round(29 - ((ratio - 1.3) * 27))));
         } else {
-          fallbackCandidates.push({ collegeInfo, courseInfo, avgClosingRank, avgClosingPercentile });
+          fallbackCandidates.push({ collegeInfo, courseInfo, avgClosingRank, avgClosingPercentile, confidenceLevel });
           continue; // Too far off
         }
       } 
-      // Logic based on percentile (higher is better)
+      // Deterministic Logic based on percentile (higher is better)
       else if (percentile && avgClosingPercentile) {
-        if (percentile >= avgClosingPercentile) {
+        const diff = percentile - avgClosingPercentile;
+        
+        if (diff >= 0) {
           status = 'Safe';
-          probability = 90 + Math.random() * 9;
-        } else if (percentile >= avgClosingPercentile - 2) {
+          probability = Math.max(85, Math.min(100, Math.round(85 + (diff * 3))));
+        } else if (diff >= -2) {
           status = 'Moderate';
-          probability = 60 + Math.random() * 24;
-        } else if (percentile >= avgClosingPercentile - 5) {
+          probability = Math.max(60, Math.min(84, Math.round(84 + (diff * 12))));
+        } else if (diff >= -5) {
           status = 'Reach';
-          probability = 30 + Math.random() * 29;
-        } else if (percentile >= avgClosingPercentile - 10) {
+          probability = Math.max(30, Math.min(59, Math.round(59 + ((diff + 2) * 9.6))));
+        } else if (diff >= -10) {
           status = 'Dream';
-          probability = 10 + Math.random() * 19;
+          probability = Math.max(10, Math.min(29, Math.round(29 + ((diff + 5) * 3.8))));
         } else {
-          fallbackCandidates.push({ collegeInfo, courseInfo, avgClosingRank, avgClosingPercentile });
+          fallbackCandidates.push({ collegeInfo, courseInfo, avgClosingRank, avgClosingPercentile, confidenceLevel });
           continue;
         }
       } else {
@@ -169,7 +179,8 @@ export class PredictionService {
         historicalAvgClosingRank: avgClosingRank ? Math.round(avgClosingRank) : null,
         historicalAvgClosingPercentile: avgClosingPercentile ? avgClosingPercentile.toFixed(2) : null,
         status,
-        probability: Math.round(probability),
+        probability,
+        confidenceLevel,
         matchScore: Math.round(matchScore),
         collegeDetails: {
           location: `${collegeInfo.city}, ${collegeInfo.state}`,
@@ -202,7 +213,8 @@ export class PredictionService {
           historicalAvgClosingRank: f.avgClosingRank ? Math.round(f.avgClosingRank) : null,
           historicalAvgClosingPercentile: f.avgClosingPercentile ? f.avgClosingPercentile.toFixed(2) : null,
           status: 'Dream',
-          probability: Math.max(1, Math.round(Math.random() * 10)),
+          probability: 5,
+          confidenceLevel: 'Low',
           matchScore: Math.round(matchScore),
           isFallback: true,
           collegeDetails: {

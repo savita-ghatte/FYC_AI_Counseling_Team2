@@ -324,6 +324,9 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
 
 export const getCaptcha = (req: Request, res: Response): void => {
   const captcha = captchaService.generateCaptcha();
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.json({ status: 'success', data: captcha });
 };
 

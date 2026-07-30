@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { streamChat } from '../controllers/aiController';
+import { streamChat, getChatHistory } from '../controllers/aiController';
 import { authenticate } from '../middlewares/authMiddleware';
 
 const router = Router();
@@ -15,5 +15,6 @@ const aiLimiter = rateLimit({
 router.use(authenticate);
 
 router.post('/chat', aiLimiter, streamChat);
+router.get('/chat/:sessionId', getChatHistory);
 
 export default router;

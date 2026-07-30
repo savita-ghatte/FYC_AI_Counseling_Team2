@@ -309,11 +309,19 @@ export const PredictionResults = () => {
                           </label>
                         </div>
                         
-                        <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-                          <span className="text-xs uppercase tracking-widest text-slate-500 font-bold">Chances</span>
-                          <span className={`text-xl font-black ${activeTab === 'Safe' ? 'text-emerald-500' : activeTab === 'Moderate' ? 'text-amber-500' : activeTab === 'Reach' ? 'text-orange-500' : 'text-red-500'}`}>
-                            {college.probability}%
-                          </span>
+                        <div className="flex items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
+                          <div className="flex flex-col items-end border-r border-slate-200 pr-4">
+                            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Confidence</span>
+                            <span className={`text-xs font-bold ${college.confidenceLevel === 'High' ? 'text-emerald-600' : college.confidenceLevel === 'Medium' ? 'text-amber-600' : 'text-red-500'}`}>
+                              {college.confidenceLevel || 'Low'}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Chances</span>
+                            <span className={`text-xl leading-none font-black ${activeTab === 'Safe' ? 'text-emerald-500' : activeTab === 'Moderate' ? 'text-amber-500' : activeTab === 'Reach' ? 'text-orange-500' : 'text-red-500'}`}>
+                              {college.probability}%
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, AlertCircle, Copy, Check, Trash2, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../utils/api';
 
 type Message = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  isError?: boolean;
 };
 
 export const AICounsellor = () => {
@@ -15,7 +18,8 @@ export const AICounsellor = () => {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(localStorage.getItem('aiSessionId'));
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -27,11 +31,45 @@ export const AICounsellor = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Fetch chat history on mount
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (!sessionId) return;
+      try {
+        const response = await api.get(`/ai/chat/${sessionId}`);
+        if (response.data.status === 'success' && response.data.data.messages.length > 0) {
+          setMessages(prev => [
+            prev[0], // Keep the initial greeting
+            ...response.data.data.messages
+          ]);
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
+    };
+    fetchHistory();
+  }, [sessionId]);
+
+  const clearChat = () => {
+    localStorage.removeItem('aiSessionId');
+    setSessionId(null);
+    setMessages([{ id: 'initial', role: 'assistant', content: 'Namaste! I am your AI Admission Counsellor. I can guide you through college predictions, scholarship applications, or career paths. How can I assist you today?' }]);
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   const sendMessage = async (e?: React.FormEvent, overrideText?: string) => {
     if (e) e.preventDefault();
     
     const textToSend = overrideText || input;
     if (!textToSend.trim() || loading) return;
+
+    // Remove any previous error messages before sending
+    setMessages(prev => prev.filter(msg => !msg.isError));
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: textToSend };
     setMessages(prev => [...prev, userMsg]);
@@ -42,7 +80,7 @@ export const AICounsellor = () => {
     setMessages(prev => [...prev, { id: assistantMsgId, role: 'assistant', content: '' }]);
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      let response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -50,6 +88,42 @@ export const AICounsellor = () => {
         },
         body: JSON.stringify({ message: textToSend, sessionId })
       });
+
+      // If token is expired, attempt to refresh it once
+      if (response.status === 401) {
+        try {
+          const refreshRes = await api.post('/auth/refresh');
+          if (refreshRes.data.status === 'success') {
+            const newToken = refreshRes.data.data.accessToken;
+            // Update api header globally
+            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+            // Retry the fetch
+            response = await fetch('/api/ai/chat', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${newToken}`
+              },
+              body: JSON.stringify({ message: textToSend, sessionId })
+            });
+          }
+        } catch (refreshErr) {
+          throw new Error('Your session has expired. Please log out and log back in.');
+        }
+      }
+
+      if (!response.ok) {
+        let errorMsg = 'An unexpected error occurred. Please try again.';
+        if (response.status === 429) {
+          errorMsg = 'You are sending messages too quickly. Please wait a moment and try again.';
+        } else {
+          try {
+            const errData = await response.json();
+            if (errData.message || errData.error) errorMsg = errData.message || errData.error;
+          } catch (e) {}
+        }
+        throw new Error(errorMsg);
+      }
 
       if (!response.body) throw new Error('No readable stream');
 
@@ -64,7 +138,7 @@ export const AICounsellor = () => {
         
         if (value) {
           buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split('\\n\\n');
+          const events = buffer.split('\n\n'); // FIX: Replaced literal \\n\\n with standard \n\n
           buffer = events.pop() || ''; // Retain the last incomplete chunk
           
           for (const ev of events) {
@@ -75,6 +149,7 @@ export const AICounsellor = () => {
                 const data = JSON.parse(ev.replace('data: ', ''));
                 if (data.type === 'session_id') {
                   setSessionId(data.sessionId);
+                  localStorage.setItem('aiSessionId', data.sessionId);
                 } else if (data.type === 'chunk') {
                   setMessages(prev => 
                     prev.map(msg => 
@@ -82,23 +157,22 @@ export const AICounsellor = () => {
                     )
                   );
                 } else if (data.type === 'error') {
-                  console.error(data.message);
-                } else if (data.type === 'done') {
-                  // Stream finished from backend explicitly
+                  throw new Error(data.message);
                 }
-              } catch (e) {
-                // If it fails to parse, it could be corrupted, but our buffer logic minimizes this.
-                console.error("Error parsing SSE JSON:", e);
+              } catch (e: any) {
+                if (e.message !== 'Unexpected end of JSON input') { // allow partial parses just in case
+                  throw e;
+                }
               }
             }
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Chat error:', error);
       setMessages(prev => 
         prev.map(msg => 
-          msg.id === assistantMsgId ? { ...msg, content: "I'm sorry, I encountered an error connecting to my servers. Please try again later." } : msg
+          msg.id === assistantMsgId ? { ...msg, content: error.message || "I'm sorry, I encountered an error connecting to my servers.", isError: true } : msg
         )
       );
     } finally {
@@ -128,18 +202,61 @@ export const AICounsellor = () => {
             </p>
           </div>
         </div>
+        <button 
+          onClick={clearChat}
+          className="text-xs flex items-center gap-1 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 px-3 py-1.5 rounded-lg transition-colors border border-slate-200 hover:border-red-200"
+        >
+          <Trash2 size={14} /> Clear Chat
+        </button>
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-4 max-w-[85%] ${msg.role === 'user' ? 'ml-auto flex-row-reverse' : ''}`}>
-            <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-purple-100 text-purple-600'}`}>
-              {msg.role === 'user' ? <User size={16} /> : <Bot size={18} />}
+            <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center ${msg.role === 'user' ? 'bg-indigo-600 text-white' : msg.isError ? 'bg-red-100 text-red-600' : 'bg-purple-100 text-purple-600'}`}>
+              {msg.role === 'user' ? <User size={16} /> : msg.isError ? <AlertCircle size={18} /> : <Bot size={18} />}
             </div>
             
-            <div className={`rounded-2xl px-5 py-3 shadow-sm whitespace-pre-wrap ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'}`}>
-              {msg.content || (msg.role === 'assistant' && loading ? <Loader2 className="animate-spin h-5 w-5 text-purple-500" /> : '')}
+            <div className={`group rounded-2xl px-5 py-3 shadow-sm ${msg.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : msg.isError ? 'bg-red-50 border border-red-200 text-red-800 rounded-tl-none' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'}`}>
+              {msg.role === 'assistant' && !msg.isError ? (
+                <div className="prose prose-sm prose-slate max-w-none">
+                  {msg.content ? (
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  ) : (
+                    loading && (
+                      <div className="flex gap-1 items-center h-5">
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                      </div>
+                    )
+                  )}
+                </div>
+              ) : (
+                <div className="whitespace-pre-wrap">{msg.content}</div>
+              )}
+
+              {/* Action Buttons below AI messages */}
+              {msg.role === 'assistant' && !loading && (
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                  {msg.isError ? (
+                    <button 
+                      onClick={() => sendMessage(undefined, messages[messages.length - 2]?.content)} 
+                      className="text-[10px] flex items-center gap-1 text-red-600 hover:text-red-700 bg-red-100 px-2 py-1 rounded"
+                    >
+                      <RefreshCw size={12} /> Retry
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => copyToClipboard(msg.content, msg.id)}
+                      className="text-[10px] flex items-center gap-1 text-slate-400 hover:text-slate-600"
+                    >
+                      {copiedId === msg.id ? <><Check size={12} className="text-emerald-500" /> Copied!</> : <><Copy size={12} /> Copy response</>}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -148,7 +265,7 @@ export const AICounsellor = () => {
 
       {/* Input Area */}
       <div className="p-4 bg-white border-t border-slate-200 shrink-0">
-        {messages.length === 1 && (
+        {messages.length <= 2 && (
           <div className="flex flex-wrap gap-2 mb-4 justify-center">
             {quickPrompts.map((prompt, idx) => (
               <button 
@@ -176,7 +293,7 @@ export const AICounsellor = () => {
             disabled={!input.trim() || loading}
             className="w-12 h-12 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white rounded-full flex items-center justify-center transition-colors shrink-0"
           >
-            <Send size={20} className={input.trim() && !loading ? 'ml-1' : ''} />
+            {loading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} className={input.trim() ? 'ml-1' : ''} />}
           </button>
         </form>
         

@@ -14,6 +14,7 @@ import { PredictorLayout } from './components/predictor/PredictorLayout';
 import { PredictorForm } from './components/predictor/PredictorForm';
 import { PredictionResults } from './components/predictor/PredictionResults';
 import { ScholarshipDashboard } from './components/scholarships/ScholarshipDashboard';
+import { ScholarshipDetails } from './components/scholarships/ScholarshipDetails';
 import { AICounsellor } from './components/chat/AICounsellor';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminOverview } from './components/admin/AdminOverview';
@@ -21,6 +22,7 @@ import { AdminStudents } from './components/admin/AdminStudents';
 import { AdminColleges } from './components/admin/AdminColleges';
 import { AdminReports } from './components/admin/AdminReports';
 import { AdminAIUsage } from './components/admin/AdminAIUsage';
+import { AdminScholarships } from './components/admin/AdminScholarships';
 import { StudentDashboard } from './components/dashboard/StudentDashboard';
 
 function App() {
@@ -48,6 +50,7 @@ function App() {
                   <Route path="results" element={<PredictionResults />} />
                 </Route>
                 <Route path="/scholarships" element={<ScholarshipDashboard />} />
+                <Route path="/scholarships/:id" element={<ScholarshipDetails />} />
                 <Route path="/ai-counsellor" element={<AICounsellor />} />
               </Route>
               
@@ -57,6 +60,7 @@ function App() {
                   <Route index element={<AdminOverview />} />
                   <Route path="students" element={<AdminStudents />} />
                   <Route path="colleges" element={<AdminColleges />} />
+                  <Route path="scholarships" element={<AdminScholarships />} />
                   <Route path="reports" element={<AdminReports />} />
                   <Route path="ai-usage" element={<AdminAIUsage />} />
                   <Route path="*" element={<div className="p-10 text-center text-slate-500">This module is part of the prototype and will be fully wired later.</div>} />

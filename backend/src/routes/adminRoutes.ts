@@ -1,23 +1,27 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { getDashboardStats, getStudents, getCollegesAdmin } from '../controllers/adminController';
+import { 
+  getDashboardStats, 
+  getStudents, 
+  getCollegesAdmin,
+  createScholarship,
+  updateScholarship,
+  deleteScholarship
+} from '../controllers/adminController';
 import { authenticate } from '../middlewares/authMiddleware';
 
 const router = Router();
 
-// In a real app, uncomment this exact role check:
-// const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-//   if ((req as any).user.role !== 'admin') {
-//     return res.status(403).json({ error: 'Access denied. Admin only.' });
-//   }
-//   next();
-// };
-
-// For prototype per user agreement, we use basic authentication but bypass strict role check
+// For prototype, using basic auth
 router.use(authenticate);
-// router.use(requireAdmin); 
 
+// Dashboard and other existing
 router.get('/stats', getDashboardStats);
 router.get('/students', getStudents);
 router.get('/colleges', getCollegesAdmin);
+
+// Admin Scholarships
+router.post('/scholarships', createScholarship);
+router.put('/scholarships/:id', updateScholarship);
+router.delete('/scholarships/:id', deleteScholarship);
 
 export default router;

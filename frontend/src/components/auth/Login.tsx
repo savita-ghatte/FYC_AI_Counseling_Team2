@@ -68,7 +68,7 @@ export const Login = () => {
 
   const fetchCaptcha = async () => {
     try {
-      const res = await api.get('/auth/captcha');
+      const res = await api.get(`/auth/captcha?t=${Date.now()}`);
       if (res.data.status === 'success') {
         setCaptchaSvg(res.data.data.svg);
         setCaptchaId(res.data.data.id);

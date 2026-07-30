@@ -11,10 +11,13 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'MOCK_KEY');
 // Strict prompt for AI Counsellor
 const SYSTEM_PROMPT = `
 You are an expert AI College Admission Counsellor specifically focused on Indian Engineering and Medical admissions (JEE, NEET, MHT-CET).
-Your goal is to guide students through college selection, scholarships, and career paths.
-You must be supportive, professional, and knowledgeable.
-Answer strictly in the user's preferred language (you support English, Hindi, Marathi, etc.).
-Keep responses concise and well-formatted in Markdown.
+Your ONLY goal is to guide students through college selection, scholarships, and career paths based on factual admission data.
+CRITICAL RULES:
+1. ONLY answer queries related to education, admissions, colleges, exams, and scholarships.
+2. If a user asks something unrelated to these topics (e.g., general knowledge, coding, politics, weather, entertainment), you MUST politely refuse to answer and redirect them to admission-related topics.
+3. NEVER hallucinate or invent information. If you do not know the answer or lack specific data (like exact cutoffs or fee structures), clearly state that you don't have that information.
+4. Provide structured, accurate, and concise answers using Markdown. Format your output with clear headings (##), bullet points, and bold text for key terms to make it highly readable.
+5. Answer strictly in the user's preferred language (English, Hindi, Marathi, etc.).
 `;
 
 export const streamChat = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -60,12 +63,15 @@ export const streamChat = async (req: Request, res: Response, next: NextFunction
       }
     });
 
-    // 4. Fetch Conversation History (last 5 interactions)
-    const history = await prisma.chatMessage.findMany({
+    // 4. Fetch Conversation History (last 10 interactions)
+    let history = await prisma.chatMessage.findMany({
       where: { sessionId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: 10
     });
+    
+    // Reverse to chronological order for Gemini API
+    history = history.reverse();
 
     // Map history to Gemini format, ensuring alternating roles
     const rawContents = history.map(msg => ({
@@ -79,8 +85,14 @@ export const streamChat = async (req: Request, res: Response, next: NextFunction
       if (contents.length > 0 && contents[contents.length - 1].role === msg.role) {
         contents[contents.length - 1].parts[0].text += `\n\n${msg.parts[0].text}`;
       } else {
-        contents.push(msg);
+        // Deep copy to prevent mutating rawContents
+        contents.push({ role: msg.role, parts: [{ text: msg.parts[0].text }] });
       }
+    }
+
+    // Gemini strictly requires the first message to be from a 'user'
+    if (contents.length > 0 && contents[0].role === 'model') {
+      contents.shift(); // Remove the first message if it's from the model
     }
 
     // Ensure the last message is from the user, as we just added it
@@ -112,14 +124,18 @@ export const streamChat = async (req: Request, res: Response, next: NextFunction
         await new Promise(resolve => setTimeout(resolve, 50)); // Artificial delay
       }
     } else {
-      // Real Gemini API Call
+      // Real Gemini API Call with Timeout
       const model = genAI.getGenerativeModel({ 
         model: 'gemini-1.5-flash',
         systemInstruction: `${SYSTEM_PROMPT}\n${contextString}`
       });
-      const result = await model.generateContentStream({
-        contents
-      });
+      
+      const generatePromise = model.generateContentStream({ contents });
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Gemini API Timeout')), 15000)
+      );
+
+      const result = await Promise.race([generatePromise, timeoutPromise]) as any;
 
       for await (const chunk of result.stream) {
         const chunkText = chunk.text();
@@ -140,9 +156,45 @@ export const streamChat = async (req: Request, res: Response, next: NextFunction
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('AI Stream Error:', error);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to process AI request' })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message || 'The AI service is currently unavailable or encountered an error. Please try again later.' })}\n\n`);
     res.end();
+  }
+};
+
+export const getChatHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const { sessionId } = req.params;
+
+    const session = await prisma.chatSession.findFirst({
+      where: { id: sessionId, userId }
+    });
+
+    if (!session) {
+      res.status(404).json({ status: 'error', message: 'Chat session not found' });
+      return;
+    }
+
+    const messages = await prisma.chatMessage.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'asc' }
+    });
+
+    res.json({
+      status: 'success',
+      data: {
+        sessionId: session.id,
+        messages: messages.map(msg => ({
+          id: msg.id,
+          role: msg.role,
+          content: msg.content
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Fetch history error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch chat history' });
   }
 };
