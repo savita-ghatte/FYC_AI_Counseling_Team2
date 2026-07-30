@@ -59,3 +59,46 @@ export const getCollegesAdmin = async (req: Request, res: Response, next: NextFu
     next(error);
   }
 };
+
+// Admin Scholarship Management
+export const createScholarship = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const data = req.body;
+    // ensure date strings are converted to Date objects if provided
+    if (data.deadline) data.deadline = new Date(data.deadline);
+    if (data.applicationStart) data.applicationStart = new Date(data.applicationStart);
+
+    const scholarship = await prisma.scholarship.create({ data });
+    res.status(201).json({ status: 'success', data: scholarship });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateScholarship = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    
+    if (data.deadline) data.deadline = new Date(data.deadline);
+    if (data.applicationStart) data.applicationStart = new Date(data.applicationStart);
+
+    const scholarship = await prisma.scholarship.update({
+      where: { id },
+      data
+    });
+    res.json({ status: 'success', data: scholarship });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteScholarship = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    await prisma.scholarship.delete({ where: { id } });
+    res.json({ status: 'success', message: 'Scholarship deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};

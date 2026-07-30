@@ -1,50 +1,54 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { predictionService, PredictionInput } from '../services/predictionService';
 
 export const predictColleges = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { examName, rank, category, gender, homeState, pwdStatus, preferredBranch, budgetMax } = req.body;
+    const input: PredictionInput = req.body;
+    
+    // Some validation
+    if (!input.examName || !input.scoreValue || !input.category) {
+      res.status(400).json({ status: 'error', message: 'Missing required fields: examName, scoreValue, category' });
+      return;
+    }
+    
+    if ((req.body as any).preferredBranch) {
+      input.preferredBranches = [(req.body as any).preferredBranch];
+    }
 
-    // This is the core logic. In a real system, we query Cutoff table and compare.
-    // For this prototype, we'll implement a mock predictive algorithm that returns
-    // structured Safe, Moderate, and Dream colleges based on the rank ranges, as
-    // actual cutoff data isn't seeded yet.
+    const predictions = await predictionService.generatePredictions(input);
 
-    const safe = [
-      { id: '3', name: 'VIT Pune', branch: preferredBranch || 'Computer Science', probability: 95, fees: 180000, type: 'Private' },
-      { id: '4', name: 'PICT Pune', branch: preferredBranch || 'Information Technology', probability: 88, fees: 140000, type: 'Private' }
-    ];
+    const grouped = {
+      safe: [] as any[],
+      moderate: [] as any[],
+      reach: [] as any[],
+      dream: [] as any[]
+    };
 
-    const moderate = [
-      { id: '2', name: 'Delhi Technological University', branch: preferredBranch || 'Software Engineering', probability: 65, fees: 160000, type: 'Government' },
-      { id: '5', name: 'NIT Trichy', branch: 'Mechanical', probability: 55, fees: 120000, type: 'Government' }
-    ];
+    predictions.forEach(p => {
+      if (p.status === 'Safe') grouped.safe.push(p);
+      else if (p.status === 'Moderate') grouped.moderate.push(p);
+      else if (p.status === 'Reach') grouped.reach.push(p);
+      else if (p.status === 'Dream') grouped.dream.push(p);
+    });
 
-    const dream = [
-      { id: '1', name: 'IIT Bombay', branch: preferredBranch || 'Computer Science', probability: 15, fees: 200000, type: 'Government' },
-      { id: '6', name: 'IIT Delhi', branch: 'Mathematics and Computing', probability: 25, fees: 210000, type: 'Government' }
-    ];
-
-    // Filter by budget if provided
     const filterByBudget = (colleges: any[]) => {
-      if (!budgetMax) return colleges;
-      return colleges.filter(c => c.fees <= budgetMax);
+      if (!input.budgetMax) return colleges;
+      return colleges.filter(c => c.collegeDetails.fees <= input.budgetMax!);
     };
 
     res.json({
       status: 'success',
       data: {
         predictions: {
-          safe: filterByBudget(safe),
-          moderate: filterByBudget(moderate),
-          dream: filterByBudget(dream)
+          safe: filterByBudget(grouped.safe),
+          moderate: filterByBudget(grouped.moderate),
+          reach: filterByBudget(grouped.reach),
+          dream: filterByBudget(grouped.dream)
         },
         metadata: {
-          analyzedRank: rank,
-          exam: examName,
-          category
+          analyzedScore: input.scoreValue,
+          exam: input.examName,
+          category: input.category
         }
       }
     });

@@ -76,8 +76,10 @@ model StudentProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  scholarshipMatches ScholarshipMatch[]
-  studentDocuments   StudentDocument[]
+  scholarshipMatches      ScholarshipMatch[]
+  savedScholarships       SavedScholarship[]
+  scholarshipApplications ScholarshipApplication[]
+  studentDocuments        StudentDocument[]
 
   @@index([category])
 }
@@ -237,23 +239,44 @@ model Facility {
 model Scholarship {
   id       String  @id @default(uuid())
   name     String
-  provider String?
-  category String?
-  type     String  @default("Government") // Government, Private
+  provider String? // MahaDBT, Buddy4Study, NSP, etc.
+  category String? // Merit-based, Means-based, Category-based
+  type     String  @default("Government") // Government, Private, NGO
 
-  amountMax       Float?
-  applicationMode String?
-  applicationUrl  String?
+  // Financials
+  amountMax   Float?
+  incomeLimit Float? // Maximum family income allowed
 
-  eligibilityCriteria String?
-  requiredDocuments   String[]
-  deadline            DateTime?
+  // Eligibility
+  eligibilityCriteria  String? // General text
+  academicRequirements Json?   // e.g., { "10th": 60, "12th": 65, "ug": 60 }
+  applicableCourses    String[] // e.g., ["B.Tech", "B.E.", "Diploma"]
+  stateEligibility     String[] // e.g., ["Maharashtra"] or empty for All India
+  minorityEligibility  Boolean  @default(false)
+  casteEligibility     String[] // e.g., ["SC", "ST", "OBC", "EWS", "OPEN"]
+  genderEligibility    String?  @default("All") // All, Female, Male
+  pwdEligibility       Boolean  @default(false)
+
+  // Applications
+  applicationMode  String?
+  applicationUrl   String?
+  applicationStart DateTime?
+  deadline         DateTime?
+  status           String  @default("Upcoming") // Open, Closed, Upcoming
+  
+  // Extra Info
+  requiredDocuments  String[]
+  renewalInformation String?
+  helplineNumber     String?
+  contactEmail       String?
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  scholarshipMatches ScholarshipMatch[]
+  scholarshipMatches     ScholarshipMatch[]
+  savedScholarships      SavedScholarship[]
+  scholarshipApplications ScholarshipApplication[]
 }
 
 model ScholarshipMatch {
@@ -263,10 +286,41 @@ model ScholarshipMatch {
   studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
   scholarship      Scholarship    @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
 
-  matchScore        Float?
-  eligibilityStatus String?
+  matchScore        Float? // 0 to 100
+  eligibilityStatus String? // Eligible, Partially Eligible, Not Eligible
+  matchDetails      Json?   // Explain why e.g. { "income": true, "caste": false }
 
   createdAt DateTime @default(now())
+
+  @@unique([studentProfileId, scholarshipId])
+}
+
+model SavedScholarship {
+  id               String         @id @default(uuid())
+  studentProfileId String
+  scholarshipId    String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  scholarship      Scholarship    @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentProfileId, scholarshipId])
+}
+
+model ScholarshipApplication {
+  id               String         @id @default(uuid())
+  studentProfileId String
+  scholarshipId    String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+  scholarship      Scholarship    @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
+
+  status        String   @default("Draft") // Draft, Submitted, Verified, Approved, Rejected
+  appliedDate   DateTime?
+  applicationId String?  // External reference ID if applicable
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([studentProfileId, scholarshipId])
 }
